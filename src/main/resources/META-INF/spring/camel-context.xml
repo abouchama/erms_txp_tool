@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xsi:schemaLocation="
+       http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
+       http://camel.apache.org/schema/spring http://camel.apache.org/schema/spring/camel-spring.xsd">
+
+<bean id="jmsConnectionFactory_src" class="org.apache.activemq.ActiveMQConnectionFactory">
+<property name="brokerURL" value="failover:tcp://localhost:51616" />
+		<property name="userName" value="system" />
+		<property name="password" value="manager" />
+		<property name="watchTopicAdvisories" value="false" />
+	</bean>
+
+<bean id="jmsConnectionFactory_dest" class="org.apache.activemq.ActiveMQConnectionFactory">
+		<property name="brokerURL" value="failover:tcp://localhost:51617" />
+		<property name="userName" value="system" />
+		<property name="password" value="manager" />
+		<property name="watchTopicAdvisories" value="false" />
+	</bean>
+
+  <camelContext xmlns="http://camel.apache.org/schema/spring">
+    <route>
+			<from uri="jms:queue:SRC" />
+			<transacted ref="required" />
+			<to uri="log:transfer?showHeaders=true&amp;showBody=false" />
+			<to uri="activemq:queue:DEST" />
+		</route>
+  </camelContext>
+
+<bean id="jms" class="org.apache.camel.component.jms.JmsComponent">
+		<property name="configuration" ref="jmsConfig_src" />
+	</bean>
+	<bean id="jmsConfig_src" class="org.apache.camel.component.jms.JmsConfiguration">
+		<property name="connectionFactory" ref="jmsPooledConnectionFactory_src" />
+		<property name="transacted" value="true" />
+		<property name="transactionManager" ref="jmsTransactionManager_src" />
+		<property name="cacheLevelName" value="CACHE_CONSUMER" />
+	</bean>
+	<bean id="jmsTransactionManager_src"
+		class="org.springframework.jms.connection.JmsTransactionManager">
+		<property name="connectionFactory" ref="jmsPooledConnectionFactory_src" />
+	</bean>
+	<bean id="jmsPooledConnectionFactory_src" class="org.apache.activemq.pool.PooledConnectionFactory"
+		init-method="start" destroy-method="stop">
+		<property name="maxConnections" value="2" />
+		<property name="connectionFactory" ref="jmsConnectionFactory_src" />
+	</bean>
+	
+	<bean id="activemq" class="org.apache.camel.component.jms.JmsComponent">
+		<property name="configuration" ref="jmsConfig_dest" />
+	</bean>
+	<bean id="jmsConfig_dest" class="org.apache.camel.component.jms.JmsConfiguration">
+		<property name="connectionFactory" ref="jmsPooledConnectionFactory_dest" />
+		<property name="transacted" value="true" />
+		<property name="transactionManager" ref="jmsTransactionManager_dest" />
+		<property name="cacheLevelName" value="CACHE_CONSUMER" />
+	</bean>
+	<bean id="jmsTransactionManager_dest"
+		class="org.springframework.jms.connection.JmsTransactionManager">
+		<property name="connectionFactory" ref="jmsPooledConnectionFactory_dest" />
+	</bean>
+	<bean id="jmsPooledConnectionFactory_dest" class="org.apache.activemq.pool.PooledConnectionFactory"
+		init-method="start" destroy-method="stop">
+		<property name="maxConnections" value="2" />
+		<property name="connectionFactory" ref="jmsConnectionFactory_dest" />
+	</bean>
+
+	<bean id="required" class="org.apache.camel.spring.spi.SpringTransactionPolicy">
+		<property name="transactionManager" ref="jmsTransactionManager_dest" />
+		<property name="propagationBehaviorName" value="PROPAGATION_REQUIRED" />
+	</bean>
+
+
+</beans>
